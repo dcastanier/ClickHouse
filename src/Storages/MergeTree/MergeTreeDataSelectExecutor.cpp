@@ -1,4 +1,5 @@
 #include <boost/rational.hpp>   /// For calculations related to sampling coefficients.
+#include <ext/scope_guard.h>
 #include <optional>
 
 #include <Poco/File.h>
@@ -33,6 +34,7 @@ namespace std
         static constexpr bool is_integer = true;
         static constexpr int radix = 2;
         static constexpr int digits = 128;
+        static constexpr int digits10 = 38;
         static constexpr __uint128_t min () { return 0; } // used in boost 1.65.1+
         static constexpr __uint128_t max () { return __uint128_t(0) - 1; } // used in boost 1.68.0+
     };
@@ -44,7 +46,6 @@ namespace std
 #include <DataTypes/DataTypeEnum.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Processors/ConcatProcessor.h>
-#include <Processors/Executors/TreeExecutorBlockInputStream.h>
 #include <Processors/Merges/AggregatingSortedTransform.h>
 #include <Processors/Merges/CollapsingSortedTransform.h>
 #include <Processors/Merges/MergingSortedTransform.h>
@@ -614,7 +615,16 @@ Pipes MergeTreeDataSelectExecutor::readFromParts(
             ThreadPool pool(num_threads);
 
             for (size_t part_index = 0; part_index < parts.size(); ++part_index)
-                pool.scheduleOrThrowOnError([&, part_index] { process_part(part_index); });
+                pool.scheduleOrThrowOnError([&, part_index, thread_group = CurrentThread::getGroup()] {
+                    SCOPE_EXIT(
+                        if (thread_group)
+                            CurrentThread::detachQueryIfNotDetached();
+                    );
+                    if (thread_group)
+                        CurrentThread::attachTo(thread_group);
+
+                    process_part(part_index);
+                });
 
             pool.wait();
         }
@@ -969,17 +979,17 @@ Pipes MergeTreeDataSelectExecutor::spreadMarkRangesAmongStreamsWithOrder(
         if (direction == 1)
         {
             /// Split first few ranges to avoid reading much data.
-            bool splitted = false;
+            bool split = false;
             for (auto range : ranges)
             {
-                while (!splitted && range.begin + marks_in_range < range.end)
+                while (!split && range.begin + marks_in_range < range.end)
                 {
                     new_ranges.emplace_back(range.begin, range.begin + marks_in_range);
                     range.begin += marks_in_range;
                     marks_in_range *= 2;
 
                     if (marks_in_range > max_marks_in_range)
-                        splitted = true;
+                        split = true;
                 }
                 new_ranges.emplace_back(range.begin, range.end);
             }
@@ -1344,7 +1354,7 @@ MarkRanges MergeTreeDataSelectExecutor::markRangesFromPKRange(
     /// If index is not used.
     if (key_condition.alwaysUnknownOrTrue())
     {
-        LOG_TRACE(log, "Not using index on part {}", part->name);
+        LOG_TRACE(log, "Not using primary index on part {}", part->name);
 
         if (has_final_mark)
             res.push_back(MarkRange(0, marks_count - 1));

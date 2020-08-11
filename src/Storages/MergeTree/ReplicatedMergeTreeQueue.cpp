@@ -985,7 +985,7 @@ bool ReplicatedMergeTreeQueue::shouldExecuteLogEntry(
     MergeTreeData & data,
     std::lock_guard<std::mutex> & state_lock) const
 {
-    /// If our entry produce part which is alredy covered by
+    /// If our entry produce part which is already covered by
     /// some other entry which is currently executing, then we can postpone this entry.
     if (entry.type == LogEntry::MERGE_PARTS
         || entry.type == LogEntry::GET_PART
@@ -1224,7 +1224,7 @@ bool ReplicatedMergeTreeQueue::processEntry(
     try
     {
         /// We don't have any backoff for failed entries
-        /// we just count amount of tries for each ot them.
+        /// we just count amount of tries for each of them.
         if (func(entry))
             removeProcessedEntry(get_zookeeper(), entry);
     }
@@ -1538,7 +1538,7 @@ void ReplicatedMergeTreeQueue::getInsertTimes(time_t & out_min_unprocessed_inser
 }
 
 
-std::optional<MergeTreeMutationStatus> ReplicatedMergeTreeQueue::getIncompleteMutationsStatus(const String & znode_name, Strings * mutation_ids) const
+std::optional<MergeTreeMutationStatus> ReplicatedMergeTreeQueue::getIncompleteMutationsStatus(const String & znode_name, std::set<String> * mutation_ids) const
 {
 
     std::lock_guard lock(state_mutex);
@@ -1568,7 +1568,7 @@ std::optional<MergeTreeMutationStatus> ReplicatedMergeTreeQueue::getIncompleteMu
             {
                 /// All mutations with the same failure
                 if (!it->second->is_done && it->second->latest_fail_reason == status.latest_fail_reason)
-                    mutation_ids->push_back(it->second->entry->znode_name);
+                    mutation_ids->insert(it->second->entry->znode_name);
             }
         }
     }
@@ -1905,7 +1905,7 @@ std::optional<std::pair<Int64, int>> ReplicatedMergeTreeMergePredicate::getDesir
         if (mutation_status->entry->isAlterMutation())
         {
             /// We want to assign mutations for part which version is bigger
-            /// than part current version. But it doesn't make sence to assign
+            /// than part current version. But it doesn't make sense to assign
             /// more fresh versions of alter-mutations if previous alter still
             /// not done because alters execute one by one in strict order.
             if (mutation_version > current_version || !mutation_status->is_done)

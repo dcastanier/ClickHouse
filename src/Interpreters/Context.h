@@ -377,7 +377,7 @@ public:
     /// Checks the constraints.
     void checkSettingsConstraints(const SettingChange & change) const;
     void checkSettingsConstraints(const SettingsChanges & changes) const;
-    void clampToSettingsConstraints(SettingChange & change) const;
+    void checkSettingsConstraints(SettingsChanges & changes) const;
     void clampToSettingsConstraints(SettingsChanges & changes) const;
 
     /// Returns the current constraints (can return null).
@@ -532,8 +532,8 @@ public:
     std::shared_ptr<MetricLog> getMetricLog();
     std::shared_ptr<AsynchronousMetricLog> getAsynchronousMetricLog();
 
-    /// Returns an object used to log opertaions with parts if it possible.
-    /// Provide table name to make required cheks.
+    /// Returns an object used to log operations with parts if it possible.
+    /// Provide table name to make required checks.
     std::shared_ptr<PartLog> getPartLog(const String & part_database);
 
     const MergeTreeSettings & getMergeTreeSettings() const;
